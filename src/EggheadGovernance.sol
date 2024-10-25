@@ -16,6 +16,10 @@ import {INonceHolder} from "lib/foundry-era-contracts/src/system-contracts/contr
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
+/// @title Governance contract for Egghead
+/// @author Jeremy N.
+/// @notice You can use this contract for only the most basic simulation
+/// @custom:experimental This is an experimental contract.
 contract EggheadGovernance is IAccount, Ownable {
     using MemoryTransactionHelper for Transaction;
 
@@ -61,7 +65,10 @@ contract EggheadGovernance is IAccount, Ownable {
                            EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    // Create a new proposal for governance
+    /// @notice Create a new proposal
+    /// @param title is the name of the proposal
+    /// @param description is the description of the proposal
+    /// @param votingDuration is the duration of the voting period
     function createProposal(string memory title, string memory description, uint256 votingDuration)
         external
         onlyOwner
@@ -81,7 +88,9 @@ contract EggheadGovernance is IAccount, Ownable {
         nextProposalId++;
     }
 
-    // Vote on a proposal
+    /// @notice Vote on a proposal
+    /// @param proposalId is the id of the proposal
+    /// @param support is the vote for or against the proposal
     function voteOnProposal(uint256 proposalId, bool support) external onlyOwner {
         Proposal storage proposal = proposals[proposalId];
         require(block.timestamp < proposal.deadline, "Voting period has ended");
@@ -98,6 +107,8 @@ contract EggheadGovernance is IAccount, Ownable {
         emit Voted(proposalId, support, msg.sender);
     }
 
+    /// @notice Execute a proposal
+    /// @param proposalId is the id of the proposal
     function executeProposal(uint256 proposalId) external onlyOwner {
         Proposal storage proposal = proposals[proposalId];
         require(block.timestamp >= proposal.deadline, "Voting period has not ended");
