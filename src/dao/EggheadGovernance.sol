@@ -29,7 +29,7 @@ contract EggheadGovernance is
         IVotes _token,
         TimelockController _timelock
     )
-        Governor("MyGovernor")
+        Governor("EggheadGovernance")
         GovernorSettings(1, /* 1 block */ 50_400, /* 1 week */ 0)
         GovernorVotes(_token)
         GovernorVotesQuorumFraction(4)
