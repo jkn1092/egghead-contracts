@@ -1,124 +1,121 @@
 //SPX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {
-    IAccount,
-    ACCOUNT_VALIDATION_SUCCESS_MAGIC
-} from "lib/foundry-era-contracts/src/system-contracts/contracts/interfaces/IAccount.sol";
-import {BOOTLOADER_FORMAL_ADDRESS} from "lib/foundry-era-contracts/src/system-contracts/contracts/Constants.sol";
-import {
-    Transaction,
-    MemoryTransactionHelper
-} from "lib/foundry-era-contracts/src/system-contracts/contracts/libraries/MemoryTransactionHelper.sol";
-import {SystemContractsCaller} from
-    "lib/foundry-era-contracts/src/system-contracts/contracts/libraries/SystemContractsCaller.sol";
-import {INonceHolder} from "lib/foundry-era-contracts/src/system-contracts/contracts/interfaces/INonceHolder.sol";
-import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import { Governor } from "@openzeppelin/contracts/governance/Governor.sol";
+import { GovernorSettings } from "@openzeppelin/contracts/governance/extensions/GovernorSettings.sol";
+import { GovernorCountingSimple } from "@openzeppelin/contracts/governance/extensions/GovernorCountingSimple.sol";
+import { GovernorVotes } from "@openzeppelin/contracts/governance/extensions/GovernorVotes.sol";
+import { GovernorVotesQuorumFraction } from
+    "@openzeppelin/contracts/governance/extensions/GovernorVotesQuorumFraction.sol";
+import { GovernorTimelockControl } from "@openzeppelin/contracts/governance/extensions/GovernorTimelockControl.sol";
+import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
+
+import { IVotes } from "@openzeppelin/contracts/governance/utils/IVotes.sol";
+import { IGovernor } from "@openzeppelin/contracts/governance/IGovernor.sol";
 
 /// @title Governance contract for Egghead
 /// @author Jeremy N.
 /// @notice You can use this contract for only the most basic simulation
 /// @custom:experimental This is an experimental contract.
-contract EggheadGovernance is IAccount, Ownable {
-    using MemoryTransactionHelper for Transaction;
+contract EggheadGovernance is
+    Governor,
+    GovernorSettings,
+    GovernorCountingSimple,
+    GovernorVotes,
+    GovernorVotesQuorumFraction,
+    GovernorTimelockControl
+{
+    constructor(
+        IVotes _token,
+        TimelockController _timelock
+    )
+        Governor("MyGovernor")
+        GovernorSettings(1, /* 1 block */ 50_400, /* 1 week */ 0)
+        GovernorVotes(_token)
+        GovernorVotesQuorumFraction(4)
+        GovernorTimelockControl(_timelock)
+    { }
 
-    // Governance Structures
-    struct Proposal {
-        uint256 id;
-        string title;
-        string description;
-        uint256 votesFor;
-        uint256 votesAgainst;
-        uint256 deadline;
-        bool executed;
-        address proposer;
+    function votingDelay() public view override(Governor, GovernorSettings) returns (uint256) {
+        return super.votingDelay();
     }
 
-    mapping(uint256 => Proposal) public proposals;
-    mapping(uint256 => mapping(address => bool)) public hasVoted;
-    uint256 public nextProposalId;
-
-    event ProposalCreated(uint256 proposalId, string name, string description, address indexed proposer);
-    event Voted(uint256 proposalId, bool support, address indexed voter);
-    event ProposalExecuted(uint256 proposalId);
-
-    modifier requireFromBootLoader() {
-        if (msg.sender != BOOTLOADER_FORMAL_ADDRESS) {
-            revert("Not from BootLoader");
-        }
-        _;
+    function votingPeriod() public view override(Governor, GovernorSettings) returns (uint256) {
+        return super.votingPeriod();
     }
 
-    modifier requireFromBootLoaderOrOwner() {
-        if (msg.sender != BOOTLOADER_FORMAL_ADDRESS && msg.sender != owner()) {
-            revert("Not from BootLoader or Owner");
-        }
-        _;
-    }
-
-    constructor() Ownable(msg.sender) {}
-
-    receive() external payable {}
-
-    /*//////////////////////////////////////////////////////////////
-                           EXTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
-
-    /// @notice Create a new proposal
-    /// @param title is the name of the proposal
-    /// @param description is the description of the proposal
-    /// @param votingDuration is the duration of the voting period
-    function createProposal(string memory title, string memory description, uint256 votingDuration)
-        external
-        onlyOwner
+    function quorum(uint256 blockNumber)
+        public
+        view
+        override(Governor, GovernorVotesQuorumFraction)
+        returns (uint256)
     {
-        proposals[nextProposalId] = Proposal({
-            id: nextProposalId,
-            title: title,
-            description: description,
-            votesFor: 0,
-            votesAgainst: 0,
-            deadline: block.timestamp + votingDuration,
-            executed: false,
-            proposer: msg.sender
-        });
-
-        emit ProposalCreated(nextProposalId, title, description, msg.sender);
-        nextProposalId++;
+        return super.quorum(blockNumber);
     }
 
-    /// @notice Vote on a proposal
-    /// @param proposalId is the id of the proposal
-    /// @param support is the vote for or against the proposal
-    function voteOnProposal(uint256 proposalId, bool support) external onlyOwner {
-        Proposal storage proposal = proposals[proposalId];
-        require(block.timestamp < proposal.deadline, "Voting period has ended");
-        require(!hasVoted[proposalId][msg.sender], "Already voted");
-
-        uint256 votingPower = 1;
-        if (support) {
-            proposal.votesFor += votingPower;
-        } else {
-            proposal.votesAgainst += votingPower;
-        }
-
-        hasVoted[proposalId][msg.sender] = true;
-        emit Voted(proposalId, support, msg.sender);
+    function state(uint256 proposalId)
+        public
+        view
+        override(Governor, GovernorTimelockControl)
+        returns (ProposalState)
+    {
+        return super.state(proposalId);
     }
 
-    /// @notice Execute a proposal
-    /// @param proposalId is the id of the proposal
-    function executeProposal(uint256 proposalId) external onlyOwner {
-        Proposal storage proposal = proposals[proposalId];
-        require(block.timestamp >= proposal.deadline, "Voting period has not ended");
-        require(!proposal.executed, "Proposal already executed");
+    function proposalNeedsQueuing(uint256 proposalId)
+        public
+        view
+        override(Governor, GovernorTimelockControl)
+        returns (bool)
+    {
+        return super.proposalNeedsQueuing(proposalId);
+    }
 
-        if (proposal.votesFor > proposal.votesAgainst) {
-            // Logic to execute the proposal
-        }
+    function proposalThreshold() public view override(Governor, GovernorSettings) returns (uint256) {
+        return super.proposalThreshold();
+    }
 
-        proposal.executed = true;
-        emit ProposalExecuted(proposalId);
+    function _queueOperations(
+        uint256 proposalId,
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas,
+        bytes32 descriptionHash
+    )
+        internal
+        override(Governor, GovernorTimelockControl)
+        returns (uint48)
+    {
+        return super._queueOperations(proposalId, targets, values, calldatas, descriptionHash);
+    }
+
+    function _executeOperations(
+        uint256 proposalId,
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas,
+        bytes32 descriptionHash
+    )
+        internal
+        override(Governor, GovernorTimelockControl)
+    {
+        super._executeOperations(proposalId, targets, values, calldatas, descriptionHash);
+    }
+
+    function _cancel(
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas,
+        bytes32 descriptionHash
+    )
+        internal
+        override(Governor, GovernorTimelockControl)
+        returns (uint256)
+    {
+        return super._cancel(targets, values, calldatas, descriptionHash);
+    }
+
+    function _executor() internal view override(Governor, GovernorTimelockControl) returns (address) {
+        return super._executor();
     }
 }
