@@ -1,5 +1,7 @@
-
+/.idea
+/broadcast
 /lib
 /out
 /zkout
 /cache
+.env
