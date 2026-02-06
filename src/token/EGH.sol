@@ -8,8 +8,9 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 /**
  * @title EGH
  * @author Jeremy N.
- * @notice A basic ERC-20 token implementation with mint, transfer, and approve functionality
- * @dev Transfer and approve are inherited from OpenZeppelin's ERC20 implementation
+ * @notice A complete ERC-20 token implementation with mint, transfer, approve, transferFrom, and allowance
+ * functionality
+ * @dev All ERC-20 standard functions are implemented. Transfer and Approval events are emitted automatically.
  */
 contract EGH is ERC20, Ownable {
     error EGH__MustBeMoreThanZero();
@@ -20,6 +21,17 @@ contract EGH is ERC20, Ownable {
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
     uint256 public constant MAX_SUPPLY = 1_000_000_000 * 10 ** 18; // 1 billion tokens
+    uint8 public constant DECIMALS = 18; // Standard ERC-20 decimals
+
+    /*//////////////////////////////////////////////////////////////
+                                 EVENTS
+    //////////////////////////////////////////////////////////////*/
+    /**
+     * @dev Emitted when tokens are minted
+     * @param to The address that received the minted tokens
+     * @param amount The amount of tokens minted
+     */
+    event TokensMinted(address indexed to, uint256 amount);
 
     /*//////////////////////////////////////////////////////////////
                                MODIFIERS
@@ -44,6 +56,29 @@ contract EGH is ERC20, Ownable {
     constructor(string memory name, string memory symbol) ERC20(name, symbol) Ownable(msg.sender) { }
 
     /*//////////////////////////////////////////////////////////////
+                           VIEW FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+    /**
+     * @notice Returns the number of decimals used to get its user representation
+     * @dev ERC-20 standard function. Returns 18 by default.
+     * @return The number of decimals
+     */
+    function decimals() public pure override returns (uint8) {
+        return DECIMALS;
+    }
+
+    /**
+     * @notice Returns the amount of tokens that an owner allowed to a spender
+     * @dev ERC-20 standard function
+     * @param owner The address which owns the funds
+     * @param spender The address which will spend the funds
+     * @return The amount of tokens still available for the spender
+     */
+    function allowance(address owner, address spender) public view override returns (uint256) {
+        return super.allowance(owner, spender);
+    }
+
+    /*//////////////////////////////////////////////////////////////
                            EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
     /**
@@ -66,6 +101,7 @@ contract EGH is ERC20, Ownable {
             revert EGH__MintAmountExceedsMaxSupply();
         }
         _mint(to, amount);
+        emit TokensMinted(to, amount);
         return true;
     }
 
@@ -82,12 +118,24 @@ contract EGH is ERC20, Ownable {
 
     /**
      * @notice Approve a spender to transfer tokens on behalf of the caller
-     * @dev Inherited from ERC20, available for use
+     * @dev ERC-20 standard function. Emits an Approval event.
      * @param spender The address to approve
      * @param amount The amount of tokens to approve
      * @return success Returns true if approval was successful
      */
     function approve(address spender, uint256 amount) public override returns (bool success) {
         return super.approve(spender, amount);
+    }
+
+    /**
+     * @notice Transfer tokens from one address to another using an allowance
+     * @dev ERC-20 standard function. The caller must have sufficient allowance.
+     * @param from The address to transfer tokens from
+     * @param to The address to transfer tokens to
+     * @param amount The amount of tokens to transfer
+     * @return success Returns true if transfer was successful
+     */
+    function transferFrom(address from, address to, uint256 amount) public override returns (bool success) {
+        return super.transferFrom(from, to, amount);
     }
 }
