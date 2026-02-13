@@ -8,6 +8,8 @@ remapping = [
     ]
 is-system = true
 via-ir = true
+optimizer = true
+optimizer_runs = 200
 
 [invariant]
 runs = 64
